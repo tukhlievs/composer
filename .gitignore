@@ -1,0 +1,12 @@
+# Secrets — never commit. .env is the single source of truth and stays local.
+.env
+.dev.vars
+
+# Dependencies and build output
+node_modules/
+dist/
+.wrangler/
+
+# Logs and OS noise
+*.log
+.DS_Store
