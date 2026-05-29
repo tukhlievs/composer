@@ -1,0 +1,26 @@
+{
+  "name": "composer-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Composer — multifunctional Telegram AI agent on Cloudflare Workers",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "predev": "node scripts/env-to-devvars.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "secrets": "node scripts/sync-secrets.mjs",
+    "set-webhook": "node scripts/set-webhook.mjs",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

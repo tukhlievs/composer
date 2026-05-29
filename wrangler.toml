@@ -1,0 +1,27 @@
+name = "composer"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# Node built-ins (Buffer, streams) used by pdf-lib / fontkit.
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret configuration. Secrets (tokens, API keys, the model id) are NOT
+# stored here — they live in .env and are uploaded with `npm run secrets`.
+[vars]
+BOT_NAME = "Composer"
+AGENT_MAX_STEPS = "6"
+HISTORY_LIMIT = "16"
+# Public Unicode font with full Cyrillic coverage, embedded into generated PDFs.
+PDF_FONT_URL = "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/cyrillic-400-normal.ttf"
+PDF_FONT_BOLD_URL = "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/cyrillic-700-normal.ttf"
+# Default Cobalt instance for media downloads. Override in .env to self-host.
+COBALT_API_URL = "https://cobalt-api.kwiatekmiki.com"
+
+# Persistent storage for memory, knowledge, plans and chat history.
+# Create with: wrangler kv:namespace create COMPOSER_KV
+[[kv_namespaces]]
+binding = "COMPOSER_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[observability]
+enabled = true
