@@ -41,7 +41,7 @@ export async function deepResearch(config, llm, topic, { rounds = 3 } = {}) {
       { role: "system", content: "You break a research topic into focused web-search sub-queries. Reply with a JSON array of strings only." },
       { role: "user", content: `Topic: ${topic}\nReturn ${rounds} distinct, specific search queries as a JSON array.` },
     ],
-    { task: "fast", temperature: 0.3, maxTokens: 300, json: true }
+    { task: "plan", temperature: 0.3, maxTokens: 300, json: true }
   );
 
   let queries = [];
@@ -82,7 +82,7 @@ export async function deepResearch(config, llm, topic, { rounds = 3 } = {}) {
       },
       { role: "user", content: `Research topic: ${topic}\n\nFindings:\n${context}\n\nWrite the report now.` },
     ],
-    { task: "reasoning", temperature: 0.4, maxTokens: 2800 }
+    { task: "report", temperature: 0.4, maxTokens: 2800 }
   );
 
   const allSources = findings.flatMap((f) => f.sources.split("\n")).filter(Boolean);

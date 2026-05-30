@@ -143,12 +143,30 @@ const tools = [
   },
   {
     name: "create_plan",
-    description: "Create a step-by-step plan for a multi-part task. Provide a goal and an ordered list of step strings.",
-    args: { goal: "string", steps: "string[]" },
+    description: "Create a step-by-step plan for a multi-part task. Provide a goal; steps are optional — the planner model will expand the goal into concrete ordered steps.",
+    args: { goal: "string", steps: "string[] (optional)" },
     async run({ goal, steps }, ctx) {
-      const list = Array.isArray(steps) ? steps : String(steps).split("\n").filter(Boolean);
+      let list = Array.isArray(steps) ? steps.filter(Boolean) : steps ? String(steps).split("\n").filter(Boolean) : [];
+      // Planning runs on the planner model (Gemini). If the agent didn't supply
+      // a real list, ask Gemini to decompose the goal.
+      if (list.length < 2 && goal) {
+        try {
+          const raw = await ctx.llm.chat(
+            [
+              { role: "system", content: "You are a planner. Break the goal into 3-7 concrete, ordered, actionable steps. Reply with a JSON array of short strings only." },
+              { role: "user", content: `Goal: ${goal}` },
+            ],
+            { task: "plan", temperature: 0.3, maxTokens: 400, json: true }
+          );
+          const parsed = JSON.parse((raw.match(/\[[\s\S]*\]/) || [])[0] || raw);
+          if (Array.isArray(parsed) && parsed.length) list = parsed.map(String);
+        } catch {
+          /* fall back to whatever was provided */
+        }
+      }
+      if (!list.length) return "Provide a goal (and optionally steps) to plan.";
       const plan = await ctx.store.setPlan(ctx.chatId, goal, list);
-      return `Plan created with ${plan.steps.length} steps. Now execute them one by one.`;
+      return `Plan created with ${plan.steps.length} steps (decomposed by the planner). Now execute them one by one.`;
     },
   },
   {

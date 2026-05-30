@@ -1,7 +1,7 @@
 // After each reply, quietly mine the user's message for durable personal info
-// and merge it into their memory file. Runs on the fast GROQ model so it adds
-// little latency and cost. Strictly conservative: only stores what the user
-// explicitly stated about themselves.
+// and merge it into their memory file. Runs on the fast model (Gemini, task
+// "fast") so it adds little latency. Strictly conservative: only stores what the
+// user explicitly stated about themselves.
 
 function safeJson(text) {
   if (!text) return null;

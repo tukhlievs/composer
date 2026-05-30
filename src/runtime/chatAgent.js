@@ -9,7 +9,7 @@
 
 import { loadConfig } from "../config.js";
 import { Store, DurableKV } from "../memory/store.js";
-import { LLM } from "../llm/groq.js";
+import { LLM } from "../llm/llm.js";
 import { Telegram } from "../telegram/client.js";
 import { handleUpdate } from "../telegram/router.js";
 import { makeDurableReminders, fireDueReminders } from "./reminders.js";

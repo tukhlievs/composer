@@ -10,9 +10,9 @@ const HELP = {
   start: (name) =>
     `Привет! Я ${name} — мультиинструментальный ИИ-ассистент.\n\n` +
     `Что я умею: искать и скачивать музыку, видео из YouTube, Instagram, Pinterest и TikTok, ` +
-    `проводить глубокое исследование (deep research), делать PDF-отчёты, планировать задачи и ` +
-    `запоминать важное о тебе.\n\n` +
-    `Просто напиши, что нужно, или пришли ссылку. /help — список команд.\n\n` +
+    `проводить глубокое исследование (deep research), делать детальные PDF-отчёты, распознавать ` +
+    `изображения, ставить напоминания, планировать задачи и запоминать важное о тебе.\n\n` +
+    `Просто напиши, что нужно, пришли ссылку или фото. /help — список команд.\n\n` +
     `Hi! I'm ${name}, a multi-tool AI assistant. Send a request or a link. /help for commands.`,
   help: (name) =>
     `<b>${name}</b> — команды:\n` +
@@ -56,6 +56,18 @@ async function handleReminderCallback(cq, base) {
   }
 }
 
+// Pick a downloadable image from a message: a photo (largest size) or an
+// image document. Returns { fileId } or null.
+function pickPhoto(msg) {
+  if (Array.isArray(msg.photo) && msg.photo.length) {
+    return { fileId: msg.photo[msg.photo.length - 1].file_id };
+  }
+  if (msg.document && /^image\//.test(msg.document.mime_type || "")) {
+    return { fileId: msg.document.file_id };
+  }
+  return null;
+}
+
 function renderProfile(profile) {
   const lines = [
     profile.name ? `Имя: ${escapeHtml(profile.name)}` : null,
@@ -76,7 +88,8 @@ export async function handleUpdate(update, base) {
   if (!msg || !msg.chat) return;
 
   const chatId = msg.chat.id;
-  const text = (msg.text || msg.caption || "").trim();
+  let text = (msg.text || msg.caption || "").trim();
+  const originalText = text;
   const ctx = { ...base, chatId, userId: msg.from && msg.from.id };
   const tg = base.telegram;
 
@@ -112,8 +125,22 @@ export async function handleUpdate(update, base) {
       // Unknown command — fall through to the agent.
     }
 
+    // Image recognition: if the message carries a photo, let Gemini read it and
+    // fold the result into the text so the agent (Minimax) can act on it.
+    const photo = pickPhoto(msg);
+    if (photo) {
+      await tg.sendChatAction(chatId, "typing");
+      const f = await tg.getFile(photo.fileId);
+      const img = await tg.downloadFile(f.file_path);
+      const prompt = originalText || "Внимательно опиши это изображение, извлеки весь текст и важные детали. Отвечай на русском.";
+      const seen = await ctx.llm.describeImage(prompt, img);
+      text = originalText
+        ? `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nСообщение пользователя: ${originalText}`
+        : `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nКоротко отреагируй или помоги пользователю по этому изображению.`;
+    }
+
     if (!text) {
-      return void (await tg.sendMessage(chatId, "Пришли текст или ссылку — пока я работаю с текстовыми сообщениями."));
+      return void (await tg.sendMessage(chatId, "Пришли текст, ссылку или изображение."));
     }
 
     await tg.sendChatAction(chatId, "typing");
@@ -125,7 +152,7 @@ export async function handleUpdate(update, base) {
 
     // After replying, quietly update the user's memory file (fast model).
     try {
-      await extractMemory(ctx, text);
+      await extractMemory(ctx, originalText);
     } catch (err) {
       log.warn("memory extraction failed", { error: err.message });
     }

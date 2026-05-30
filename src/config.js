@@ -5,7 +5,7 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API"];
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GEMINI_API", "OPENROUTER_API", "OPENROUTER_MODEL"];
 
 export function loadConfig(env) {
   const cfg = {
@@ -13,10 +13,17 @@ export function loadConfig(env) {
       token: env.TELEGRAM_BOT_TOKEN,
       webhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     },
-    groq: {
-      // Only the API key is read from env. Model selection is hardcoded per task
-      // in src/llm/models.js; GROQ_MODEL is intentionally ignored.
-      apiKey: env.GROQ_API,
+    // Gemini: planning + vision. Model is hardcoded in src/llm/models.js,
+    // so no GEMINI_MODEL env var is read.
+    gemini: {
+      apiKey: env.GEMINI_API,
+    },
+    // Minimax via OpenRouter: the "hands" (agent loop, coding, reports).
+    openrouter: {
+      apiKey: env.OPENROUTER_API,
+      model: env.OPENROUTER_MODEL,
+      appUrl: env.OPENROUTER_APP_URL || "https://github.com/tukhlievs/composer",
+      appTitle: env.OPENROUTER_APP_TITLE || "Composer",
     },
     cobalt: {
       apiUrl: (env.COBALT_API_URL || "").replace(/\/+$/, ""),

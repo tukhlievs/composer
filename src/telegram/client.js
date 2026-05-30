@@ -4,9 +4,44 @@
 
 import { fetchWithTimeout } from "../utils/http.js";
 
+// Base64-encode bytes in chunks (avoids call-stack limits on large images).
+function toBase64(bytes) {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+function guessMime(path) {
+  const p = path.toLowerCase();
+  if (p.endsWith(".png")) return "image/png";
+  if (p.endsWith(".webp")) return "image/webp";
+  if (p.endsWith(".gif")) return "image/gif";
+  if (p.endsWith(".heic")) return "image/heic";
+  return "image/jpeg";
+}
+
 export class Telegram {
   constructor(token) {
+    this.token = token;
     this.base = `https://api.telegram.org/bot${token}`;
+    this.fileBase = `https://api.telegram.org/file/bot${token}`;
+  }
+
+  // Resolve a file_id to a downloadable path.
+  getFile(fileId) {
+    return this.call("getFile", { file_id: fileId });
+  }
+
+  // Download a Telegram file (by file_path) and return its bytes as base64,
+  // for feeding images to a vision model.
+  async downloadFile(filePath) {
+    const res = await fetchWithTimeout(`${this.fileBase}/${filePath}`, {}, 30000);
+    if (!res.ok) throw new Error(`Telegram file download failed: ${res.status}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return { bytes, base64: toBase64(bytes), mimeType: guessMime(filePath) };
   }
 
   async call(method, payload = {}) {
