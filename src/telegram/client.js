@@ -78,4 +78,29 @@ export class Telegram {
       allowed_updates: ["message", "edited_message", "callback_query"],
     });
   }
+
+  deleteWebhook(dropPending = false) {
+    return this.call("deleteWebhook", { drop_pending_updates: dropPending });
+  }
+
+  // Long-poll for updates. The HTTP timeout is kept comfortably above the
+  // long-poll window so the connection isn't aborted mid-wait.
+  async getUpdates(offset, timeoutSec = 25) {
+    const res = await fetchWithTimeout(
+      `${this.base}/getUpdates`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offset,
+          timeout: timeoutSec,
+          allowed_updates: ["message", "edited_message", "callback_query"],
+        }),
+      },
+      (timeoutSec + 15) * 1000
+    );
+    const data = await res.json();
+    if (!data.ok) throw new Error(`Telegram getUpdates failed: ${data.description || res.status}`);
+    return data.result;
+  }
 }

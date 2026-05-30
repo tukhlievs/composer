@@ -1,0 +1,54 @@
+// Local launcher: run Composer with long polling, in-memory store and GROQ —
+// no Cloudflare, no KV, no webhook, no public URL.
+//
+// Usage: npm start   (after `npm install` and filling in .env)
+
+import { readFileSync, existsSync } from "node:fs";
+import { loadConfig, validateConfig } from "../src/config.js";
+import { createStore } from "../src/memory/store.js";
+import { LLM } from "../src/llm/groq.js";
+import { Telegram } from "../src/telegram/client.js";
+import { startPolling } from "../src/runtime/polling.js";
+
+// Minimal .env loader (real environment variables take precedence).
+function loadDotenv(path = ".env") {
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq === -1) continue;
+    const key = t.slice(0, eq).trim();
+    const val = t.slice(eq + 1).trim();
+    if (val && process.env[key] === undefined) process.env[key] = val;
+  }
+}
+
+loadDotenv();
+
+const missing = validateConfig(process.env);
+if (missing.length) {
+  console.error("Missing required variables in .env: " + missing.join(", "));
+  console.error("Need at least TELEGRAM_BOT_TOKEN, GROQ_API, GROQ_MODEL.");
+  process.exit(1);
+}
+
+const config = loadConfig(process.env); // no COMPOSER_KV -> in-memory store
+const base = {
+  config,
+  telegram: new Telegram(config.telegram.token),
+  llm: new LLM(config),
+  store: createStore(config),
+};
+
+const controller = new AbortController();
+process.on("SIGINT", () => {
+  console.log("\nShutting down…");
+  controller.abort();
+  setTimeout(() => process.exit(0), 200);
+});
+
+startPolling(base, { signal: controller.signal }).catch((err) => {
+  console.error("Fatal:", err.message);
+  process.exit(1);
+});

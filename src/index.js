@@ -10,8 +10,8 @@
 // and avoid duplicate-delivery retries.
 
 import { loadConfig, validateConfig } from "./config.js";
-import { LLM } from "./llm/openrouter.js";
-import { Store } from "./memory/store.js";
+import { LLM } from "./llm/groq.js";
+import { createStore } from "./memory/store.js";
 import { Telegram } from "./telegram/client.js";
 import { handleUpdate } from "./telegram/router.js";
 import { log } from "./utils/log.js";
@@ -63,7 +63,7 @@ export default {
         config,
         telegram,
         llm: new LLM(config),
-        store: new Store(config.kv, { historyLimit: config.bot.historyLimit }),
+        store: createStore(config), // in-memory when no KV binding is present
       };
 
       // Process in the background; acknowledge now.

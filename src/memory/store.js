@@ -128,3 +128,33 @@ export class Store {
     await this.kv.delete(`hist:${chatId}`);
   }
 }
+
+// In-memory implementation of the tiny KV surface Store relies on (get/put/
+// delete). Used when no Cloudflare KV binding is present. State lives only for
+// the lifetime of the process/isolate — perfect for the temporary, no-KV run
+// mode and for local polling.
+export class MemoryKV {
+  constructor() {
+    this.map = new Map();
+  }
+  async get(key) {
+    return this.map.has(key) ? this.map.get(key) : null;
+  }
+  async put(key, value) {
+    this.map.set(key, value);
+  }
+  async delete(key) {
+    this.map.delete(key);
+  }
+}
+
+// Shared singleton so memory survives across calls within one process.
+let sharedMemoryKv = null;
+
+// Picks the backing store: real KV when bound, otherwise in-memory.
+export function createStore(config) {
+  const opts = { historyLimit: config.bot.historyLimit };
+  if (config.kv) return new Store(config.kv, opts);
+  if (!sharedMemoryKv) sharedMemoryKv = new MemoryKV();
+  return new Store(sharedMemoryKv, opts);
+}

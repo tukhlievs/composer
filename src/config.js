@@ -5,7 +5,7 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "OPENROUTER_API_KEY", "OPENROUTER_MODEL"];
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API", "GROQ_MODEL"];
 
 export function loadConfig(env) {
   const cfg = {
@@ -13,12 +13,10 @@ export function loadConfig(env) {
       token: env.TELEGRAM_BOT_TOKEN,
       webhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     },
-    openrouter: {
-      apiKey: env.OPENROUTER_API_KEY,
+    groq: {
+      apiKey: env.GROQ_API,
       // The model id is intentionally read only here and never surfaced to users.
-      model: env.OPENROUTER_MODEL,
-      appUrl: env.OPENROUTER_APP_URL || "https://github.com/tukhlievs/composer",
-      appTitle: env.OPENROUTER_APP_TITLE || "Composer",
+      model: env.GROQ_MODEL,
     },
     cobalt: {
       apiUrl: (env.COBALT_API_URL || "").replace(/\/+$/, ""),
@@ -42,9 +40,8 @@ export function loadConfig(env) {
 }
 
 export function validateConfig(env) {
-  const missing = REQUIRED_SECRETS.filter((k) => !env[k]);
-  if (!env.COMPOSER_KV) missing.push("COMPOSER_KV (KV binding)");
-  return missing;
+  // KV is optional in this temporary mode — the store falls back to in-memory.
+  return REQUIRED_SECRETS.filter((k) => !env[k]);
 }
 
 function clampInt(value, fallback, min, max) {
