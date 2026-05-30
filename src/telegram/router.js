@@ -20,11 +20,21 @@ const HELP = {
     `/help — эта справка\n` +
     `/memory — что я о тебе помню\n` +
     `/reminders — мои активные напоминания\n` +
+    `/diag — проверить, какие модели сейчас доступны\n` +
     `/forget — стереть память обо мне\n` +
     `/reset — очистить историю диалога\n\n` +
     `В обычных сообщениях: «напомни через 20 секунд …» → напоминание; ссылка на видео/трек → скачаю; ` +
     `«найди и скачай …» → музыка; «исследуй …» → deep research; «сделай PDF …» → отчёт; «запомни …» → память.`,
 };
+
+// A short, safe, user-facing reason from an error (no keys, capped length).
+function shortReason(err) {
+  if (!err) return "неизвестная ошибка";
+  let msg = (err.body && err.body.error && err.body.error.message) || err.message || String(err);
+  msg = String(msg).replace(/key=[\w.-]+/gi, "key=***").slice(0, 240);
+  const status = err.status ? ` (HTTP ${err.status})` : "";
+  return msg + status;
+}
 
 // Handles the two reminder buttons. callback_data is "rem:stop:<id>" or
 // "rem:snooze:<id>". Always answer the callback so the user's client stops
@@ -122,6 +132,23 @@ export async function handleUpdate(update, base) {
           : "Активных напоминаний нет.";
         return void (await tg.sendMessage(chatId, body));
       }
+      if (cmd === "/diag") {
+        await tg.sendChatAction(chatId, "typing");
+        const out = [];
+        try {
+          await base.llm.chat([{ role: "user", content: "Ответь одним словом: ок" }], { task: "plan", maxTokens: 16, temperature: 0 });
+          out.push("Gemini (планирование/зрение): ок");
+        } catch (e) {
+          out.push("Gemini: ОШИБКА — " + shortReason(e));
+        }
+        try {
+          await base.llm.chat([{ role: "user", content: "Ответь одним словом: ок" }], { task: "work", maxTokens: 16, temperature: 0 });
+          out.push("Minimax (руки): ок");
+        } catch (e) {
+          out.push("Minimax: ОШИБКА — " + shortReason(e));
+        }
+        return void (await tg.sendMessage(chatId, out.join("\n")));
+      }
       // Unknown command — fall through to the agent.
     }
 
@@ -159,7 +186,7 @@ export async function handleUpdate(update, base) {
   } catch (err) {
     log.error("handleUpdate failed", err);
     try {
-      await tg.sendMessage(chatId, "Что-то пошло не так при обработке запроса. Попробуй ещё раз чуть позже.");
+      await tg.sendMessage(chatId, "Что-то пошло не так: " + shortReason(err));
     } catch {
       /* ignore */
     }
