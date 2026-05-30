@@ -6,15 +6,18 @@
 //                          (guarded by ?secret=<TELEGRAM_WEBHOOK_SECRET>)
 //   POST /webhook       -> Telegram update intake
 //
-// The heavy work runs in ctx.waitUntil so we acknowledge Telegram immediately
-// and avoid duplicate-delivery retries.
+// Each chat is handled by its own Durable Object (ChatAgent), which owns that
+// user's memory file and reminder alarms. The Worker just authenticates the
+// webhook and forwards the update to the right actor. We forward inside
+// ctx.waitUntil so Telegram is acknowledged immediately (no retries) while the
+// actor finishes the turn.
 
 import { loadConfig, validateConfig } from "./config.js";
-import { LLM } from "./llm/groq.js";
-import { createStore } from "./memory/store.js";
 import { Telegram } from "./telegram/client.js";
-import { handleUpdate } from "./telegram/router.js";
 import { log } from "./utils/log.js";
+
+// The Durable Object class must be exported from the Worker's main module.
+export { ChatAgent } from "./runtime/chatAgent.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -59,21 +62,30 @@ export default {
         return json({ ok: false, error: "bad json" }, 400);
       }
 
-      const base = {
-        config,
-        telegram,
-        llm: new LLM(config),
-        store: createStore(config), // in-memory when no KV binding is present
-      };
+      const chatId = chatIdOf(update);
+      if (chatId == null || !env.CHAT_AGENT) {
+        return json({ ok: true }); // nothing actionable
+      }
 
-      // Process in the background; acknowledge now.
-      ctx.waitUntil(handleUpdate(update, base));
+      // Route to this chat's Durable Object actor.
+      const stub = env.CHAT_AGENT.get(env.CHAT_AGENT.idFromName(String(chatId)));
+      const forward = stub.fetch("https://chat-agent/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ update }),
+      });
+      ctx.waitUntil(forward);
       return json({ ok: true });
     }
 
     return json({ ok: false, error: "Not found" }, 404);
   },
 };
+
+function chatIdOf(update) {
+  const msg = update.message || update.edited_message || (update.callback_query && update.callback_query.message);
+  return msg && msg.chat ? msg.chat.id : null;
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {

@@ -5,7 +5,7 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API", "GROQ_MODEL"];
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API"];
 
 export function loadConfig(env) {
   const cfg = {
@@ -14,9 +14,9 @@ export function loadConfig(env) {
       webhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     },
     groq: {
+      // Only the API key is read from env. Model selection is hardcoded per task
+      // in src/llm/models.js; GROQ_MODEL is intentionally ignored.
       apiKey: env.GROQ_API,
-      // The model id is intentionally read only here and never surfaced to users.
-      model: env.GROQ_MODEL,
     },
     cobalt: {
       apiUrl: (env.COBALT_API_URL || "").replace(/\/+$/, ""),

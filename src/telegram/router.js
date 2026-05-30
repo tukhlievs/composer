@@ -2,6 +2,7 @@
 // else to the agent. Replies are HTML-formatted and chunked to fit limits.
 
 import { runAgent } from "../agent/run.js";
+import { extractMemory } from "../memory/extract.js";
 import { toTelegramHtml, chunk, escapeHtml } from "./format.js";
 import { log } from "../utils/log.js";
 
@@ -18,11 +19,22 @@ const HELP = {
     `/start — приветствие\n` +
     `/help — эта справка\n` +
     `/memory — что я о тебе помню\n` +
+    `/reminders — мои активные напоминания\n` +
     `/forget — стереть память обо мне\n` +
     `/reset — очистить историю диалога\n\n` +
-    `В обычных сообщениях: ссылка на видео/трек → скачаю; «найди и скачай …» → музыка; ` +
-    `«исследуй …» → deep research; «сделай PDF …» → отчёт; «запомни …» → память.`,
+    `В обычных сообщениях: «напомни через 20 секунд …» → напоминание; ссылка на видео/трек → скачаю; ` +
+    `«найди и скачай …» → музыка; «исследуй …» → deep research; «сделай PDF …» → отчёт; «запомни …» → память.`,
 };
+
+function renderProfile(profile) {
+  const lines = [
+    profile.name ? `Имя: ${escapeHtml(profile.name)}` : null,
+    profile.age ? `Возраст: ${escapeHtml(String(profile.age))}` : null,
+    profile.language ? `Язык: ${escapeHtml(profile.language)}` : null,
+    profile.style ? `Стиль общения: ${escapeHtml(profile.style)}` : null,
+  ].filter(Boolean);
+  return lines.join("\n");
+}
 
 export async function handleUpdate(update, base) {
   const msg = update.message || update.edited_message;
@@ -49,9 +61,17 @@ export async function handleUpdate(update, base) {
       }
       if (cmd === "/memory") {
         const mem = await base.store.getMemory(chatId);
-        const body = mem.facts.length
-          ? mem.facts.map((f, i) => `${i + 1}. ${escapeHtml(f.text)}`).join("\n")
-          : "Пока ничего не запомнил.";
+        const profile = renderProfile(mem.profile || {});
+        const facts = mem.facts.length ? mem.facts.map((f, i) => `${i + 1}. ${escapeHtml(f.text)}`).join("\n") : "";
+        const body = [profile, facts].filter(Boolean).join("\n\n") || "Пока ничего не запомнил.";
+        return void (await tg.sendMessage(chatId, body));
+      }
+      if (cmd === "/reminders") {
+        if (!base.reminders) return void (await tg.sendMessage(chatId, "Напоминания недоступны в этом режиме."));
+        const list = await base.reminders.list(chatId);
+        const body = list.length
+          ? list.map((r) => `• ${new Date(r.dueTs).toISOString()} — ${escapeHtml(r.text)} [${r.id}]`).join("\n")
+          : "Активных напоминаний нет.";
         return void (await tg.sendMessage(chatId, body));
       }
       // Unknown command — fall through to the agent.
@@ -66,6 +86,13 @@ export async function handleUpdate(update, base) {
 
     for (const part of chunk(reply)) {
       await tg.sendMessage(chatId, toTelegramHtml(part));
+    }
+
+    // After replying, quietly update the user's memory file (fast model).
+    try {
+      await extractMemory(ctx, text);
+    } catch (err) {
+      log.warn("memory extraction failed", { error: err.message });
     }
   } catch (err) {
     log.error("handleUpdate failed", err);

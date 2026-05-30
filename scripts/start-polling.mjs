@@ -9,6 +9,7 @@ import { createStore } from "../src/memory/store.js";
 import { LLM } from "../src/llm/groq.js";
 import { Telegram } from "../src/telegram/client.js";
 import { startPolling } from "../src/runtime/polling.js";
+import { makeMemoryReminders } from "../src/runtime/reminders.js";
 
 // Minimal .env loader (real environment variables take precedence).
 function loadDotenv(path = ".env") {
@@ -29,16 +30,19 @@ loadDotenv();
 const missing = validateConfig(process.env);
 if (missing.length) {
   console.error("Missing required variables in .env: " + missing.join(", "));
-  console.error("Need at least TELEGRAM_BOT_TOKEN, GROQ_API, GROQ_MODEL.");
+  console.error("Need at least TELEGRAM_BOT_TOKEN and GROQ_API.");
   process.exit(1);
 }
 
 const config = loadConfig(process.env); // no COMPOSER_KV -> in-memory store
+const telegram = new Telegram(config.telegram.token);
 const base = {
   config,
-  telegram: new Telegram(config.telegram.token),
+  telegram,
   llm: new LLM(config),
   store: createStore(config),
+  // In polling mode reminders use in-process timers (lost on restart).
+  reminders: makeMemoryReminders(telegram),
 };
 
 const controller = new AbortController();

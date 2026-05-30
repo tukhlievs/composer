@@ -105,7 +105,7 @@ export function buildAgentGraph() {
 
   // "agent" node: ask the model for the next JSON action.
   g.addNode("agent", async (state, ctx) => {
-    const raw = await ctx.llm.chat(state.messages, { temperature: 0.4, maxTokens: 1100, json: true });
+    const raw = await ctx.llm.chat(state.messages, { task: "general", temperature: 0.4, maxTokens: 1100, json: true });
     state.messages.push({ role: "assistant", content: raw });
     const action = extractAction(raw);
     state.action = action;
@@ -137,7 +137,7 @@ export function buildAgentGraph() {
       role: "user",
       content: "You have reached the tool-step limit. Reply now with a final JSON object {\"final\": \"...\"} answering the user using what you have.",
     });
-    const raw = await ctx.llm.chat(state.messages, { temperature: 0.3, maxTokens: 900, json: true });
+    const raw = await ctx.llm.chat(state.messages, { task: "general", temperature: 0.3, maxTokens: 900, json: true });
     state.final = extractAction(raw).final || raw.trim();
     return state;
   });

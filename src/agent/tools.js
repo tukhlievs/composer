@@ -161,6 +161,69 @@ const tools = [
       return `Step ${index} marked done. ${remaining} step(s) remaining.`;
     },
   },
+  {
+    name: "update_profile",
+    description:
+      "Save durable profile fields about the user: name, age, language, communication style. Use when the user states these about themselves.",
+    args: { name: "string?", age: "number?", language: "string?", style: "string?" },
+    async run(args, ctx) {
+      const patch = {};
+      if (args.name) patch.name = String(args.name).slice(0, 80);
+      if (args.age != null && Number.isFinite(Number(args.age))) patch.age = Number(args.age);
+      if (args.language) patch.language = String(args.language).slice(0, 40);
+      if (args.style) patch.style = String(args.style).slice(0, 200);
+      if (!Object.keys(patch).length) return "Nothing to update.";
+      await ctx.store.setProfile(ctx.chatId, patch);
+      return `Saved to profile: ${Object.keys(patch).join(", ")}.`;
+    },
+  },
+  {
+    name: "set_reminder",
+    description:
+      "Schedule a reminder. Provide the reminder text plus a delay via seconds/minutes/hours, or an absolute ISO datetime in 'at'. The user gets a message when it is due.",
+    args: { text: "string", seconds: "number?", minutes: "number?", hours: "number?", at: "ISO datetime?" },
+    async run(args, ctx) {
+      if (!ctx.reminders) return "Reminders are not available in this runtime.";
+      const text = String(args.text || "").trim();
+      if (!text) return "A reminder text is required.";
+      let dueTs;
+      if (args.at) {
+        const t = Date.parse(args.at);
+        if (Number.isNaN(t)) return "Could not parse the 'at' datetime.";
+        dueTs = t;
+      } else {
+        const secs =
+          (Number(args.seconds) || 0) + (Number(args.minutes) || 0) * 60 + (Number(args.hours) || 0) * 3600;
+        if (secs <= 0) return "Provide a positive delay (seconds/minutes/hours) or an 'at' time.";
+        dueTs = Date.now() + secs * 1000;
+      }
+      if (dueTs <= Date.now()) return "That time is already in the past.";
+      const item = await ctx.reminders.add(ctx.chatId, text, dueTs);
+      const inSec = Math.round((item.dueTs - Date.now()) / 1000);
+      return `Reminder scheduled (id ${item.id}) to fire in ~${inSec}s. Confirm this to the user.`;
+    },
+  },
+  {
+    name: "list_reminders",
+    description: "List the user's pending reminders.",
+    args: {},
+    async run(_args, ctx) {
+      if (!ctx.reminders) return "Reminders are not available.";
+      const list = await ctx.reminders.list(ctx.chatId);
+      if (!list.length) return "No pending reminders.";
+      return list.map((r) => `- [${r.id}] ${new Date(r.dueTs).toISOString()} — ${r.text}`).join("\n");
+    },
+  },
+  {
+    name: "cancel_reminder",
+    description: "Cancel a pending reminder by its id (from list_reminders).",
+    args: { id: "string" },
+    async run({ id }, ctx) {
+      if (!ctx.reminders) return "Reminders are not available.";
+      const ok = await ctx.reminders.cancel(String(id));
+      return ok ? `Cancelled reminder ${id}.` : `No reminder found with id ${id}.`;
+    },
+  },
 ];
 
 const byName = new Map(tools.map((t) => [t.name, t]));

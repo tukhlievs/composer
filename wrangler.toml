@@ -17,14 +17,21 @@ PDF_FONT_BOLD_URL = "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/
 # Default Cobalt instance for media downloads. Override in .env to self-host.
 COBALT_API_URL = "https://cobalt-api.kwiatekmiki.com"
 
-# Persistent storage for memory, knowledge, plans and chat history.
-# OPTIONAL (temporary mode): with this commented out the bot falls back to an
-# in-memory store. To make memory durable on Workers, create a namespace and
-# uncomment:
-#   npx wrangler kv namespace create "COMPOSER_KV"
-# [[kv_namespaces]]
-# binding = "COMPOSER_KV"
-# id = "REPLACE_WITH_KV_NAMESPACE_ID"
+# Per-chat actor: holds each user's memory file and schedules reminder alarms.
+# No manual setup needed — the migration below provisions it on deploy. Uses the
+# SQLite-backed Durable Object storage, which is available on the Workers free
+# plan.
+[[durable_objects.bindings]]
+name = "CHAT_AGENT"
+class_name = "ChatAgent"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChatAgent"]
+
+# Optional: a KV namespace is NOT required — durable state lives in the Durable
+# Object above. KV remains available for the Node polling mode's alternative
+# store if you ever want it.
 
 [observability]
 enabled = true

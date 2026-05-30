@@ -129,6 +129,25 @@ export class Store {
   }
 }
 
+// Adapter so Store can run on Durable Object storage. DO storage already
+// persists structured values, but Store stringifies its own, so we just pass
+// strings through and normalise "missing" to null.
+export class DurableKV {
+  constructor(storage) {
+    this.s = storage;
+  }
+  async get(key) {
+    const v = await this.s.get(key);
+    return v === undefined || v === null ? null : v;
+  }
+  async put(key, value) {
+    await this.s.put(key, value);
+  }
+  async delete(key) {
+    await this.s.delete(key);
+  }
+}
+
 // In-memory implementation of the tiny KV surface Store relies on (get/put/
 // delete). Used when no Cloudflare KV binding is present. State lives only for
 // the lifetime of the process/isolate — perfect for the temporary, no-KV run
