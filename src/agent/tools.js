@@ -90,8 +90,9 @@ const tools = [
   },
   {
     name: "make_pdf",
-    description: "Generate a PDF report from a title and body text (Markdown-ish, Cyrillic supported) and send it to the user.",
-    args: { title: "string", content: "string" },
+    description:
+      "Generate a polished PDF report and send it to the user. Write rich Markdown in `content`: use ## and ### headings to structure sections, fenced ```code``` blocks for commands/examples, '- ' bullet lists, '1.' numbered steps, '> ' callouts for tips/warnings, and **bold** / `inline code`. Aim for a thorough, well-organised document (intro, themed sections, examples, a short summary or cheatsheet). Do NOT put emojis in the content — they are stripped. Cyrillic is fully supported.",
+    args: { title: "string", content: "string (rich Markdown)" },
     async run({ title, content }, ctx) {
       await ctx.telegram.sendChatAction(ctx.chatId, "upload_document");
       const bytes = await makePdf(ctx.config, { title, content });

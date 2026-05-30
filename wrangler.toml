@@ -11,9 +11,12 @@ compatibility_flags = ["nodejs_compat"]
 BOT_NAME = "Composer"
 AGENT_MAX_STEPS = "6"
 HISTORY_LIMIT = "16"
-# Public Unicode font with full Cyrillic coverage, embedded into generated PDFs.
-PDF_FONT_URL = "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/cyrillic-400-normal.ttf"
-PDF_FONT_BOLD_URL = "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@latest/cyrillic-700-normal.ttf"
+# Fonts embedded into generated PDFs. DejaVu has full Latin + Cyrillic coverage
+# in one file (the previous Noto subset was Cyrillic-only, so Latin like
+# "git commit" rendered as boxes). Mono is used for code blocks.
+PDF_FONT_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf"
+PDF_FONT_BOLD_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf"
+PDF_FONT_MONO_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSansMono.ttf"
 # Default Cobalt instance for media downloads. Override in .env to self-host.
 COBALT_API_URL = "https://cobalt-api.kwiatekmiki.com"
 

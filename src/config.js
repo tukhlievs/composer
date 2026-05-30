@@ -28,6 +28,8 @@ export function loadConfig(env) {
     pdf: {
       fontUrl: env.PDF_FONT_URL,
       fontBoldUrl: env.PDF_FONT_BOLD_URL || env.PDF_FONT_URL,
+      // Monospace font for code blocks; falls back to the regular font.
+      fontMonoUrl: env.PDF_FONT_MONO_URL || env.PDF_FONT_URL,
     },
     bot: {
       name: env.BOT_NAME || "Composer",
