@@ -79,6 +79,26 @@ export class Telegram {
     });
   }
 
+  // Acknowledge a button press (removes the client-side spinner; optional toast).
+  answerCallbackQuery(id, text) {
+    return this.call("answerCallbackQuery", { callback_query_id: id, text });
+  }
+
+  // Replace/remove a message's inline keyboard. Pass undefined replyMarkup to remove it.
+  editMessageReplyMarkup(chatId, messageId, replyMarkup) {
+    return this.call("editMessageReplyMarkup", { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup });
+  }
+
+  editMessageText(chatId, messageId, text, opts = {}) {
+    return this.call("editMessageText", {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: opts.parseMode || "HTML",
+      reply_markup: opts.replyMarkup,
+    });
+  }
+
   deleteWebhook(dropPending = false) {
     return this.call("deleteWebhook", { drop_pending_updates: dropPending });
   }

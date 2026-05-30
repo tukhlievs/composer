@@ -49,7 +49,8 @@ MEMORY:
 - When the user states durable personal info (name, age, preferences, goals, how they want to be addressed), call update_profile and/or remember so it persists. The system also extracts this automatically, but capture anything important explicitly.
 
 REMINDERS:
-- When the user asks to be reminded or to schedule something, call set_reminder with the delay (seconds/minutes/hours) or an absolute ISO time, plus the reminder text. Confirm the exact time in your final answer. Use list_reminders / cancel_reminder to manage them.
+- When the user asks to be reminded or to schedule something, call set_reminder with the delay (seconds/minutes/hours) or an absolute ISO time, plus the reminder text. Confirm the exact time in your final answer.
+- Reminders behave like an alarm clock: once due, they repeat every 3 minutes and each message has two buttons — "Остановить напоминание" to stop and "Продлить" to snooze 3 minutes. Mention this so the user knows to press a button to stop it. Use list_reminders / cancel_reminder to manage them too.
 
 CAPABILITIES (via tools):
 ${toolList}

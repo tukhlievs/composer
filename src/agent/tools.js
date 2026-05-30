@@ -200,7 +200,7 @@ const tools = [
       if (dueTs <= Date.now()) return "That time is already in the past.";
       const item = await ctx.reminders.add(ctx.chatId, text, dueTs);
       const inSec = Math.round((item.dueTs - Date.now()) / 1000);
-      return `Reminder scheduled (id ${item.id}) to fire in ~${inSec}s. Confirm this to the user.`;
+      return `Reminder scheduled (id ${item.id}) to first fire in ~${inSec}s. It will then repeat every 3 minutes with "Остановить напоминание" / "Продлить" buttons until the user stops it. Confirm this to the user.`;
     },
   },
   {

@@ -26,6 +26,36 @@ const HELP = {
     `«найди и скачай …» → музыка; «исследуй …» → deep research; «сделай PDF …» → отчёт; «запомни …» → память.`,
 };
 
+// Handles the two reminder buttons. callback_data is "rem:stop:<id>" or
+// "rem:snooze:<id>". Always answer the callback so the user's client stops
+// spinning, then strip the buttons from the pressed message.
+async function handleReminderCallback(cq, base) {
+  const tg = base.telegram;
+  const data = cq.data || "";
+  const chatId = cq.message && cq.message.chat && cq.message.chat.id;
+  const msgId = cq.message && cq.message.message_id;
+  const m = data.match(/^rem:(stop|snooze):(.+)$/);
+
+  if (!m || !base.reminders) {
+    return void (await tg.answerCallbackQuery(cq.id).catch(() => {}));
+  }
+  const [, action, id] = m;
+  try {
+    if (action === "stop") {
+      await base.reminders.cancel(id);
+      if (chatId && msgId) await tg.editMessageReplyMarkup(chatId, msgId, undefined).catch(() => {});
+      await tg.answerCallbackQuery(cq.id, "Напоминание остановлено").catch(() => {});
+    } else {
+      const ok = await base.reminders.snooze(id);
+      if (chatId && msgId) await tg.editMessageReplyMarkup(chatId, msgId, undefined).catch(() => {});
+      await tg.answerCallbackQuery(cq.id, ok ? "Отложено на 3 минуты" : "Напоминание не найдено").catch(() => {});
+    }
+  } catch (err) {
+    log.error("reminder callback failed", err);
+    await tg.answerCallbackQuery(cq.id).catch(() => {});
+  }
+}
+
 function renderProfile(profile) {
   const lines = [
     profile.name ? `Имя: ${escapeHtml(profile.name)}` : null,
@@ -37,6 +67,11 @@ function renderProfile(profile) {
 }
 
 export async function handleUpdate(update, base) {
+  // Inline button presses on reminders (Stop / Snooze).
+  if (update.callback_query) {
+    return void (await handleReminderCallback(update.callback_query, base));
+  }
+
   const msg = update.message || update.edited_message;
   if (!msg || !msg.chat) return;
 
