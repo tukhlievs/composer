@@ -20,8 +20,8 @@ COBALT_API_URL = "https://cobalt-api.kwiatekmiki.com"
 # Persistent storage for memory, knowledge, plans and chat history.
 # Create with: wrangler kv:namespace create COMPOSER_KV
 [[kv_namespaces]]
-binding = "COMPOSER_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+binding = "composer"
+id = "5a2af3af7ce34775b585be762bdf640a"
 
 [observability]
 enabled = true
