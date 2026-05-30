@@ -82,7 +82,7 @@ export async function deepResearch(config, llm, topic, { rounds = 3 } = {}) {
       },
       { role: "user", content: `Research topic: ${topic}\n\nFindings:\n${context}\n\nWrite the report now.` },
     ],
-    { task: "reasoning", temperature: 0.4, maxTokens: 1800 }
+    { task: "reasoning", temperature: 0.4, maxTokens: 2800 }
   );
 
   const allSources = findings.flatMap((f) => f.sources.split("\n")).filter(Boolean);
