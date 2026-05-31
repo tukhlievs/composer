@@ -10,9 +10,9 @@ const HELP = {
   start: (name) =>
     `Привет! Я ${name} — мультиинструментальный ИИ-ассистент.\n\n` +
     `Что я умею: искать и скачивать музыку, видео из YouTube, Instagram, Pinterest и TikTok, ` +
-    `проводить глубокое исследование (deep research), делать детальные PDF-отчёты, распознавать ` +
-    `изображения, ставить напоминания, планировать задачи и запоминать важное о тебе.\n\n` +
-    `Просто напиши, что нужно, пришли ссылку или фото. /help — список команд.\n\n` +
+    `проводить глубокое исследование (deep research), делать детальные PDF-отчёты, ` +
+    `ставить напоминания, планировать задачи и запоминать важное о тебе.\n\n` +
+    `Просто напиши, что нужно, или пришли ссылку. /help — список команд.\n\n` +
     `Hi! I'm ${name}, a multi-tool AI assistant. Send a request or a link. /help for commands.`,
   help: (name) =>
     `<b>${name}</b> — команды:\n` +
@@ -141,41 +141,16 @@ export async function handleUpdate(update, base) {
         } catch (e) {
           out.push("OpenRouter: ОШИБКА — " + shortReason(e));
         }
-        if (base.config.gemini && base.config.gemini.apiKey) {
-          try {
-            await base.llm.gemini.chat([{ role: "user", content: "ок" }], { maxTokens: 8, temperature: 0 });
-            out.push("Gemini (зрение): ок");
-          } catch (e) {
-            out.push("Gemini (зрение): ОШИБКА — " + shortReason(e));
-          }
-        } else {
-          out.push("Gemini (зрение): не настроен — фото распознавать не смогу");
-        }
         return void (await tg.sendMessage(chatId, out.join("\n")));
       }
       // Unknown command — fall through to the agent.
     }
 
-    // Image recognition: if the message carries a photo, let Gemini read it and
-    // fold the result into the text so the GROQ agent can act on it. GROQ has
-    // no vision, so this needs a Gemini key.
+    // Image recognition was removed (Gemini cut). A photo with no caption gets
+    // a clear note; a photo with a caption is handled as plain text.
     const photo = pickPhoto(msg);
-    if (photo) {
-      if (!(base.config.gemini && base.config.gemini.apiKey)) {
-        if (!originalText) {
-          return void (await tg.sendMessage(chatId, "Распознавание изображений сейчас отключено (не задан ключ Gemini)."));
-        }
-        // No vision available, but there is text — just handle the text.
-      } else {
-        await tg.sendChatAction(chatId, "typing");
-        const f = await tg.getFile(photo.fileId);
-        const img = await tg.downloadFile(f.file_path);
-        const prompt = originalText || "Внимательно опиши это изображение, извлеки весь текст и важные детали. Отвечай на русском.";
-        const seen = await ctx.llm.describeImage(prompt, img);
-        text = originalText
-          ? `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nСообщение пользователя: ${originalText}`
-          : `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nКоротко отреагируй или помоги пользователю по этому изображению.`;
-      }
+    if (photo && !originalText) {
+      return void (await tg.sendMessage(chatId, "Сейчас я работаю только с текстом — изображения не распознаю."));
     }
 
     if (!text) {

@@ -5,9 +5,9 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-// OpenRouter (OPENROUTER_MODEL) is the text brain. GEMINI_API is optional and
-// only powers image recognition; GROQ is off.
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "OPENROUTER_API", "OPENROUTER_MODEL"];
+// OpenRouter is the text brain (model hardcoded in src/llm/openrouter.js, so
+// OPENROUTER_MODEL is not required). Gemini is removed; GROQ is off.
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "OPENROUTER_API"];
 
 export function loadConfig(env) {
   const cfg = {
@@ -15,21 +15,16 @@ export function loadConfig(env) {
       token: env.TELEGRAM_BOT_TOKEN,
       webhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     },
-    // GROQ: the text brain (qwen/qwen3-32b, hardcoded in src/llm/groq.js).
-    // GROQ_MODEL env is intentionally ignored.
-    groq: {
-      apiKey: env.GROQ_API,
-    },
-    // Gemini: image recognition only (optional). Model hardcoded in models.js.
-    gemini: {
-      apiKey: env.GEMINI_API,
-    },
-    // Minimax via OpenRouter: the "hands" (agent loop, coding, reports).
+    // OpenRouter: the text brain. Model is hardcoded in src/llm/openrouter.js,
+    // so OPENROUTER_MODEL env is ignored.
     openrouter: {
       apiKey: env.OPENROUTER_API,
-      model: env.OPENROUTER_MODEL,
       appUrl: env.OPENROUTER_APP_URL || "https://github.com/tukhlievs/composer",
       appTitle: env.OPENROUTER_APP_TITLE || "Composer",
+    },
+    // GROQ: kept in code but disabled. Only used if providerForTask returns "groq".
+    groq: {
+      apiKey: env.GROQ_API,
     },
     cobalt: {
       apiUrl: (env.COBALT_API_URL || "").replace(/\/+$/, ""),

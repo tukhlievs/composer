@@ -6,6 +6,9 @@ import { requestJson } from "../utils/http.js";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
+// Hardcoded model; the OPENROUTER_MODEL env var is intentionally ignored.
+export const OPENROUTER_MODEL = "openrouter/free";
+
 // Some OpenRouter models (deepseek-r1, qwen, etc.) emit <think>...</think>
 // reasoning traces that would break the JSON tool protocol — strip them.
 function stripThink(text) {
@@ -15,7 +18,7 @@ function stripThink(text) {
 export class OpenRouterClient {
   constructor(config) {
     this.apiKey = config.openrouter.apiKey;
-    this.model = config.openrouter.model;
+    this.model = OPENROUTER_MODEL; // hardcoded; env OPENROUTER_MODEL ignored
     this.appUrl = config.openrouter.appUrl;
     this.appTitle = config.openrouter.appTitle;
   }
