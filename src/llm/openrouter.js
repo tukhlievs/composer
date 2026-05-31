@@ -6,6 +6,12 @@ import { requestJson } from "../utils/http.js";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
+// Some OpenRouter models (deepseek-r1, qwen, etc.) emit <think>...</think>
+// reasoning traces that would break the JSON tool protocol — strip them.
+function stripThink(text) {
+  return String(text).replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
 export class OpenRouterClient {
   constructor(config) {
     this.apiKey = config.openrouter.apiKey;
@@ -44,6 +50,6 @@ export class OpenRouterClient {
     const choice = data && data.choices && data.choices[0];
     const content = choice && choice.message && choice.message.content;
     if (!content) throw new Error((data && data.error && data.error.message) || "empty response");
-    return typeof content === "string" ? content : JSON.stringify(content);
+    return stripThink(typeof content === "string" ? content : JSON.stringify(content));
   }
 }

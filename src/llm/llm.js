@@ -1,22 +1,26 @@
 // Unified LLM facade.
-//   chat()         -> GROQ (qwen/qwen3-32b) for all text work
-//   describeImage() -> Gemini (GROQ has no vision)
+//   chat()          -> OpenRouter (OPENROUTER_MODEL) for all text work
+//   describeImage() -> Gemini (OpenRouter model may have no vision)
 // Routing is centralized in models.js (providerForTask). Callers may force a
-// provider with opts.provider.
+// provider with opts.provider ("minimax" | "gemini" | "groq").
 
-import { GroqClient } from "./groq.js";
+import { OpenRouterClient } from "./openrouter.js";
 import { GeminiClient } from "./gemini.js";
+import { GroqClient } from "./groq.js";
 import { providerForTask } from "./models.js";
 
 export class LLM {
   constructor(config) {
-    this.groq = new GroqClient(config);
+    this.minimax = new OpenRouterClient(config);
     this.gemini = new GeminiClient(config);
+    this.groq = new GroqClient(config);
   }
 
   async chat(messages, opts = {}) {
     const provider = opts.provider || providerForTask(opts.task);
-    return provider === "gemini" ? this.gemini.chat(messages, opts) : this.groq.chat(messages, opts);
+    if (provider === "gemini") return this.gemini.chat(messages, opts);
+    if (provider === "groq") return this.groq.chat(messages, opts);
+    return this.minimax.chat(messages, opts);
   }
 
   // Image recognition — always Gemini.

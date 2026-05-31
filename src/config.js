@@ -5,9 +5,9 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-// GROQ (qwen/qwen3-32b) is the text brain. GEMINI_API is optional and only
-// powers image recognition; OpenRouter/Minimax is off.
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API"];
+// OpenRouter (OPENROUTER_MODEL) is the text brain. GEMINI_API is optional and
+// only powers image recognition; GROQ is off.
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "OPENROUTER_API", "OPENROUTER_MODEL"];
 
 export function loadConfig(env) {
   const cfg = {

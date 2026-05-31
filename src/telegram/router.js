@@ -136,10 +136,10 @@ export async function handleUpdate(update, base) {
         await tg.sendChatAction(chatId, "typing");
         const out = [];
         try {
-          await base.llm.groq.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
-          out.push("GROQ qwen3-32b (мозг): ок");
+          await base.llm.minimax.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
+          out.push("OpenRouter (мозг): ок");
         } catch (e) {
-          out.push("GROQ: ОШИБКА — " + shortReason(e));
+          out.push("OpenRouter: ОШИБКА — " + shortReason(e));
         }
         if (base.config.gemini && base.config.gemini.apiKey) {
           try {

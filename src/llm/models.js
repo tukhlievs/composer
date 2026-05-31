@@ -13,10 +13,10 @@
 // break the bot.
 export const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
 
-// Current setup: ALL text tasks run on GROQ (qwen/qwen3-32b, hardcoded in
-// groq.js). Gemini is used ONLY for image recognition (describeImage), since
-// GROQ has no vision. Minimax/OpenRouter is off. To change the text model,
-// edit GROQ_MODEL in src/llm/groq.js.
+// Current setup: ALL text tasks run on OpenRouter (model from OPENROUTER_MODEL).
+// Gemini is used ONLY for image recognition (describeImage). GROQ is off
+// (kept in code). To switch the text provider, change the return value here
+// ("minimax" = OpenRouter, "groq", or "gemini").
 export function providerForTask() {
-  return "groq";
+  return "minimax";
 }
