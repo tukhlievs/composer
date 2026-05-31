@@ -1,5 +1,7 @@
-// Local launcher: run Composer with long polling, in-memory store, Gemini +
-// Minimax — no Cloudflare, no KV, no webhook, no public URL.
+// Local launcher: run Composer with long polling, in-memory store and the
+// OpenRouter brain — no Cloudflare, no KV, no webhook, no public URL. This is
+// the runtime where the yt-dlp download system works (it needs a real process);
+// install yt-dlp and ffmpeg on the host first.
 //
 // Usage: npm start   (after `npm install` and filling in .env)
 

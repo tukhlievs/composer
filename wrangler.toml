@@ -17,8 +17,8 @@ HISTORY_LIMIT = "16"
 PDF_FONT_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans.ttf"
 PDF_FONT_BOLD_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSans-Bold.ttf"
 PDF_FONT_MONO_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37.3/ttf/DejaVuSansMono.ttf"
-# Default Cobalt instance for media downloads. Override in .env to self-host.
-COBALT_API_URL = "https://cobalt-api.kwiatekmiki.com"
+# Media downloads use our own yt-dlp system (Node runtime only) — no service
+# URL or API key to configure here.
 
 # Per-chat actor: holds each user's memory file and schedules reminder alarms.
 # No manual setup needed — the migration below provisions it on deploy. Uses the
@@ -32,9 +32,34 @@ class_name = "ChatAgent"
 tag = "v1"
 new_sqlite_classes = ["ChatAgent"]
 
-# Optional: a KV namespace is NOT required — durable state lives in the Durable
-# Object above. KV remains available for the Node polling mode's alternative
-# store if you ever want it.
+# Optional: a KV namespace is NOT required for the default Durable Object path —
+# durable state lives in the Durable Object above.
+#
+# ---------------------------------------------------------------------------
+# OPT-IN: "Workers + KV + Queue" ReAct runtime (issue #3)
+# ---------------------------------------------------------------------------
+# Runs ONE ReAct cycle per Worker request: the webhook enqueues a job and the
+# queue consumer advances the run a step at a time, with state stored in KV.
+# Requires the Workers PAID plan (Queues). Reminders are unavailable in this
+# mode (they rely on Durable Object alarms) — leave it off to keep reminders.
+#
+# To enable, create the resources and uncomment both blocks below:
+#   npx wrangler kv namespace create COMPOSER_KV   # paste the id here
+#   npx wrangler queues create composer-agent
+# Queue mode activates automatically once BOTH bindings are present.
+#
+# [[kv_namespaces]]
+# binding = "COMPOSER_KV"
+# id = "<your-kv-namespace-id>"
+#
+# [[queues.producers]]
+# binding = "AGENT_QUEUE"
+# queue = "composer-agent"
+#
+# [[queues.consumers]]
+# queue = "composer-agent"
+# max_batch_size = 1
+# max_retries = 1
 
 [observability]
 enabled = true

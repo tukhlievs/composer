@@ -127,6 +127,29 @@ export class Store {
   async resetHistory(chatId) {
     await this.kv.delete(`hist:${chatId}`);
   }
+
+  // ---- Active agent run ----------------------------------------------------
+  // The live ReAct state (message transcript + step counter) for an in-flight
+  // turn. Persisting it lets a run resume across Worker requests / Queue cycles
+  // ("state in KV", issue #3). The transcript is capped so KV values stay small.
+  async getRun(chatId) {
+    return this.#get(`run:${chatId}`, null);
+  }
+  async saveRun(chatId, state) {
+    const slim = {
+      messages: Array.isArray(state.messages) ? state.messages.slice(-40) : [],
+      steps: state.steps || 0,
+      maxSteps: state.maxSteps || 6,
+      userText: state.userText || "",
+      done: !!state.done,
+      final: state.final || "",
+    };
+    await this.#put(`run:${chatId}`, slim);
+    return slim;
+  }
+  async clearRun(chatId) {
+    await this.kv.delete(`run:${chatId}`);
+  }
 }
 
 // Adapter so Store can run on Durable Object storage. DO storage already

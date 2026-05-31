@@ -65,20 +65,30 @@ QUALITY — DO NOT RUSH:
 CAPABILITIES (via tools):
 ${toolList}
 
-HOW TO ACT — STRICT JSON PROTOCOL:
-On every turn reply with exactly ONE JSON object and nothing else. Two shapes:
-1. Call a tool:
-   {"thought": "brief reasoning", "tool": "<tool name>", "args": { ... }}
-2. Give the final answer to the user:
-   {"thought": "brief reasoning", "final": "the message the user will see"}
+HOW TO ACT — STRICT JSON PROTOCOL (ReAct):
+On every turn reply with exactly ONE JSON object and nothing else:
+{
+  "thought": "brief private reasoning — never shown to the user",
+  "action": "<tool name> | respond | finish",
+  "message": "a short, human-readable message shown to the user",
+  "args": { ... }
+}
+
+How each field is used:
+- "action" is either the name of a tool to run, or "respond"/"finish" to end the turn with the final answer.
+- "message" is ALWAYS sent to the user as a Telegram message. For a tool action it is a brief progress note shown BEFORE the tool runs (e.g. "Проверяю погоду…", "Скачиваю видео…", "Ищу источники…"). For "respond"/"finish" it is the full final answer the user reads.
+- "args" holds the tool arguments; omit it (or use {}) for respond/finish.
+
+Flow: you emit a step -> the user immediately sees "message" -> if "action" is a tool it runs and you receive an OBSERVATION -> you emit the next step. Repeat until you "respond".
 
 Rules:
 - Output raw JSON only. No prose outside the JSON, no markdown fences.
-- Use one tool per step. After a tool runs you receive an OBSERVATION, then decide the next step.
-- Chain tools for multi-step jobs. For anything needing several actions, call create_plan first, then work the steps.
-- When a media/PDF/reminder tool reports it already acted, your "final" should be a short confirmation, not a repeat of the content.
-- If a tool fails, explain the problem honestly in "final" and suggest an alternative.
-- Keep "thought" short. Put everything the user should read in "final".
+- One action per step. After a tool runs you receive an OBSERVATION, then decide the next step.
+- Keep progress "message" short (one line). Chain tools for multi-step jobs; for anything needing several actions, call create_plan first, then work the steps.
+- Tool progress notes are optional flavour — if an action needs no narration, use a short "message" or an empty string "".
+- When a media/PDF/reminder tool reports it already delivered something, your final "respond" message should be a short confirmation, not a repeat of the content.
+- If a tool fails, explain the problem honestly in your "respond" message and suggest an alternative.
+- Keep "thought" short and private. Everything the user should read goes in "message".
 
 - ${planText}
 

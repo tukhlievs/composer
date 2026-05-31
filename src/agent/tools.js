@@ -7,7 +7,7 @@
 // ctx = { config, llm, store, telegram, chatId }
 
 import { webSearch, deepResearch } from "../tools/research.js";
-import { cobaltResolve, detectPlatform } from "../tools/media.js";
+import { downloadMedia, detectPlatform } from "../tools/ytdlp.js";
 import { resolveMusic } from "../tools/music.js";
 import { makePdf } from "../tools/pdf.js";
 
@@ -47,44 +47,33 @@ const tools = [
   {
     name: "download_media",
     description:
-      "Download a video or its audio from a URL (YouTube, Instagram, Pinterest, TikTok, X, etc.) and send it to the user. mode: 'auto' (video), 'audio' (audio only), 'mute' (no sound).",
-    args: { url: "string", mode: "'auto'|'audio'|'mute' (optional)" },
-    async run({ url, mode = "auto" }, ctx) {
+      "Download a video (or just its audio) from a YouTube link — and any other site yt-dlp supports — and send it to the user. Use `quality` ONLY when the user asks for it: 'audio' for audio-only (mp3), 'mute' for video without sound, or a height like '1080'/'720'/'480'. Omit `quality` for the default best video. Files must stay under the Telegram upload limit (~50 MB); for big videos suggest audio or a lower quality.",
+    args: { url: "string", quality: "'audio'|'mute'|'1080'|'720'|'480' (optional)" },
+    async run({ url, quality }, ctx) {
       const platform = detectPlatform(url);
-      await ctx.telegram.sendChatAction(ctx.chatId, mode === "audio" ? "upload_voice" : "upload_video");
-      const out = await cobaltResolve(ctx.config, url, { mode });
+      const wantAudio = /audio|mp3|звук|аудио/i.test(String(quality || ""));
+      await ctx.telegram.sendChatAction(ctx.chatId, wantAudio ? "upload_voice" : "upload_video");
+      const out = await downloadMedia(ctx.config, url, { quality });
       if (out.kind === "error") return `Could not download from ${platform}: ${out.error}`;
 
-      if (out.kind === "single") {
-        if (mode === "audio") await ctx.telegram.sendAudioUrl(ctx.chatId, out.url, { caption: `From ${platform}` });
-        else await ctx.telegram.sendVideoUrl(ctx.chatId, out.url, { caption: `From ${platform}` });
-        return `Sent the ${mode === "audio" ? "audio" : "video"} from ${platform} to the user.`;
+      if (out.audio) {
+        await ctx.telegram.sendAudioBlob(ctx.chatId, out.bytes, out.filename, { caption: `Из ${platform}` });
+        return `Sent the audio from ${platform} to the user.`;
       }
-      // picker = carousel / multiple assets
-      let count = 0;
-      for (const item of out.items.slice(0, 10)) {
-        try {
-          if (item.type === "video") await ctx.telegram.sendVideoUrl(ctx.chatId, item.url);
-          else await ctx.telegram.sendDocumentUrl(ctx.chatId, item.url);
-          count++;
-        } catch {
-          /* skip individual failures */
-        }
-      }
-      if (out.audio) await ctx.telegram.sendAudioUrl(ctx.chatId, out.audio).catch(() => {});
-      return `Sent ${count} item(s) from ${platform} to the user.`;
+      await ctx.telegram.sendVideoBlob(ctx.chatId, out.bytes, out.filename, { caption: `Из ${platform}` });
+      return `Sent the video from ${platform} to the user.`;
     },
   },
   {
     name: "download_music",
     description:
-      "Find and download a music track as audio. Pass a search query like 'artist - title' or a direct YouTube/SoundCloud URL.",
+      "Find and download a music track as audio (mp3). Pass a search query like 'artist - title' or a direct link. Searches YouTube via yt-dlp and extracts the audio — no external search service.",
     args: { query: "string" },
     async run({ query }, ctx) {
       await ctx.telegram.sendChatAction(ctx.chatId, "upload_voice");
-      const out = await resolveMusic(ctx.config, query, { audioFormat: "mp3" });
+      const out = await resolveMusic(ctx.config, query);
       if (out.kind === "error") return `Could not get that track: ${out.error}`;
-      await ctx.telegram.sendAudioUrl(ctx.chatId, out.url, { caption: trim(query, 200) });
+      await ctx.telegram.sendAudioBlob(ctx.chatId, out.bytes, out.filename, { caption: trim(query, 200) });
       return `Sent the requested track to the user.`;
     },
   },
