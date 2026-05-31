@@ -14,12 +14,9 @@ import { log } from "../utils/log.js";
 
 const HELP = {
   start: (name) =>
-    `Привет! Я ${name} — мультиинструментальный ИИ-ассистент.\n\n` +
-    `Что я умею: искать и скачивать музыку и видео с YouTube (с выбором качества или только звук), ` +
-    `проводить глубокое исследование (deep research), делать детальные PDF-отчёты, ` +
-    `ставить напоминания, планировать задачи и запоминать важное о тебе.\n\n` +
-    `Просто напиши, что нужно, или пришли ссылку. /help — список команд.\n\n` +
-    `Hi! I'm ${name}, a multi-tool AI assistant. Send a request or a link. /help for commands.`,
+    `Привет, я ваш ИИ-агент ${name}. Готов к вашим задачам.\n` +
+    `Напишите, что нужно, или загляните в /help.\n\n` +
+    `Hi, I'm ${name}, your AI agent — ready when you are. /help for commands.`,
   help: (name) =>
     `<b>${name}</b> — команды:\n` +
     `/start — приветствие\n` +
