@@ -13,6 +13,10 @@
 // break the bot.
 export const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
 
+// Minimax is temporarily disabled — everything runs on Gemini. Flip this back
+// to true to restore the split (Gemini = planning/vision/fast, Minimax = rest).
+const MINIMAX_ENABLED = false;
+
 const GEMINI_TASKS = new Set([
   "plan", // decompose goals, research sub-queries
   "vision", // image recognition
@@ -20,5 +24,6 @@ const GEMINI_TASKS = new Set([
 ]);
 
 export function providerForTask(task) {
+  if (!MINIMAX_ENABLED) return "gemini";
   return GEMINI_TASKS.has(task) ? "gemini" : "minimax";
 }

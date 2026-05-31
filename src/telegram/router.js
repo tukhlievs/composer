@@ -136,17 +136,12 @@ export async function handleUpdate(update, base) {
         await tg.sendChatAction(chatId, "typing");
         const out = [];
         try {
-          await base.llm.chat([{ role: "user", content: "Ответь одним словом: ок" }], { task: "plan", maxTokens: 16, temperature: 0 });
-          out.push("Gemini (планирование/зрение): ок");
+          await base.llm.gemini.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
+          out.push("Gemini: ок (используется для всего)");
         } catch (e) {
           out.push("Gemini: ОШИБКА — " + shortReason(e));
         }
-        try {
-          await base.llm.chat([{ role: "user", content: "Ответь одним словом: ок" }], { task: "work", maxTokens: 16, temperature: 0 });
-          out.push("Minimax (руки): ок");
-        } catch (e) {
-          out.push("Minimax: ОШИБКА — " + shortReason(e));
-        }
+        out.push("Minimax: отключён (работаем только через Gemini)");
         return void (await tg.sendMessage(chatId, out.join("\n")));
       }
       // Unknown command — fall through to the agent.

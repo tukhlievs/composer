@@ -5,7 +5,10 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GEMINI_API", "OPENROUTER_API", "OPENROUTER_MODEL"];
+// Minimax is currently disabled (Gemini-only), so OpenRouter secrets are
+// optional. Re-add "OPENROUTER_API" and "OPENROUTER_MODEL" here if you flip
+// MINIMAX_ENABLED back on in src/llm/models.js.
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GEMINI_API"];
 
 export function loadConfig(env) {
   const cfg = {
