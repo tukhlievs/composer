@@ -1,7 +1,5 @@
-// Local launcher: run Composer with long polling, in-memory store and the
-// OpenRouter brain — no Cloudflare, no KV, no webhook, no public URL. This is
-// the runtime where the yt-dlp download system works (it needs a real process);
-// install yt-dlp and ffmpeg on the host first.
+// Local launcher: run Composer with long polling, in-memory store, Gemini +
+// Minimax — no Cloudflare, no KV, no webhook, no public URL.
 //
 // Usage: npm start   (after `npm install` and filling in .env)
 
@@ -32,7 +30,7 @@ loadDotenv();
 const missing = validateConfig(process.env);
 if (missing.length) {
   console.error("Missing required variables in .env: " + missing.join(", "));
-  console.error("Need TELEGRAM_BOT_TOKEN and OPENROUTER_API (the model is hardcoded in src/llm/openrouter.js).");
+  console.error("Need TELEGRAM_BOT_TOKEN and GROQ_API (the model is hardcoded in src/llm/groq.js).");
   process.exit(1);
 }
 
