@@ -26,12 +26,21 @@ export function loadConfig(env) {
     groq: {
       apiKey: env.GROQ_API,
     },
-    cobalt: {
-      apiUrl: (env.COBALT_API_URL || "").replace(/\/+$/, ""),
-      apiKey: env.COBALT_API_KEY || "",
+    // Our own download system. yt-dlp + ffmpeg run as native processes, so this
+    // only works in the Node runtime (not Workers). No API keys needed.
+    ytdlp: {
+      bin: env.YTDLP_BIN || "yt-dlp",
+      maxFilesizeMb: clampInt(env.YTDLP_MAX_FILESIZE_MB, 50, 1, 2000),
+      defaultHeight: clampInt(env.YTDLP_DEFAULT_HEIGHT, 1080, 144, 4320),
+      // Optional cookies to defeat YouTube's "confirm you're not a bot" gate on
+      // datacenter IPs: a Netscape cookies.txt path, or a browser name to read
+      // cookies from (chrome/firefox/edge/…). Leave empty if not needed.
+      cookies: env.YTDLP_COOKIES || "",
+      cookiesFromBrowser: env.YTDLP_COOKIES_FROM_BROWSER || "",
     },
-    research: {
-      tavilyKey: env.TAVILY_API_KEY || "",
+    // Keyless web search (DuckDuckGo). `region` maps to DuckDuckGo's kl param.
+    search: {
+      region: env.SEARCH_REGION || "wt-wt",
     },
     pdf: {
       fontUrl: env.PDF_FONT_URL,

@@ -106,6 +106,27 @@ export class Telegram {
     );
   }
 
+  // Video from in-memory bytes (e.g. a yt-dlp download). Multipart upload, so
+  // the ~50 MB bot limit applies (vs ~20 MB for send-by-URL).
+  sendVideoBlob(chatId, bytes, filename, opts = {}) {
+    const blob = new Blob([bytes], { type: opts.contentType || "video/mp4" });
+    return this.callMultipart(
+      "sendVideo",
+      { chat_id: chatId, caption: opts.caption, supports_streaming: true },
+      { field: "video", blob, filename }
+    );
+  }
+
+  // Audio from in-memory bytes (e.g. an extracted mp3).
+  sendAudioBlob(chatId, bytes, filename, opts = {}) {
+    const blob = new Blob([bytes], { type: opts.contentType || "audio/mpeg" });
+    return this.callMultipart(
+      "sendAudio",
+      { chat_id: chatId, caption: opts.caption, title: opts.title, performer: opts.performer },
+      { field: "audio", blob, filename }
+    );
+  }
+
   setWebhook(url, secretToken) {
     return this.call("setWebhook", {
       url,
