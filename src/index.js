@@ -14,12 +14,25 @@
 
 import { loadConfig, validateConfig } from "./config.js";
 import { Telegram } from "./telegram/client.js";
+import { handleQueueBatch, routeQueued } from "./runtime/queue.js";
 import { log } from "./utils/log.js";
 
 // The Durable Object class must be exported from the Worker's main module.
 export { ChatAgent } from "./runtime/chatAgent.js";
 
+// Queue mode is active only when BOTH a queue and a KV namespace are bound (KV
+// is required so run state survives between cycle invocations). Otherwise we use
+// the free-plan Durable Object path. See runtime/queue.js.
+function queueEnabled(env) {
+  return !!(env.AGENT_QUEUE && env.COMPOSER_KV);
+}
+
 export default {
+  // Cloudflare Queue consumer: each message advances one ReAct cycle (issue #3).
+  async queue(batch, env) {
+    await handleQueueBatch(batch, env);
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
@@ -63,7 +76,19 @@ export default {
       }
 
       const chatId = chatIdOf(update);
-      if (chatId == null || !env.CHAT_AGENT) {
+      if (chatId == null) {
+        return json({ ok: true }); // nothing actionable
+      }
+
+      // Queue mode (Workers + KV + Queue): commands run inline, the agent turn
+      // is processed one ReAct cycle per Worker request. Falls back to the
+      // Durable Object below when queue/KV are not bound.
+      if (queueEnabled(env)) {
+        ctx.waitUntil(routeQueued(update, env));
+        return json({ ok: true });
+      }
+
+      if (!env.CHAT_AGENT) {
         return json({ ok: true }); // nothing actionable
       }
 

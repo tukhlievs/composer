@@ -1,5 +1,11 @@
-// Parses a Telegram update, handles slash-commands, and dispatches everything
-// else to the agent. Replies are HTML-formatted and chunked to fit limits.
+// Parses a Telegram update, handles slash-commands and button callbacks, and
+// dispatches everything else to the agent. Replies are HTML-formatted and
+// chunked to fit limits.
+//
+// Control handling (commands + reminder buttons + photo/empty notices) is split
+// into handleControl() so BOTH runtimes can share it: the Durable Object / Node
+// polling path runs the agent in-process here, while the Queue path (issue #3)
+// reuses handleControl() and then enqueues the agent turn.
 
 import { runAgent } from "../agent/run.js";
 import { extractMemory } from "../memory/extract.js";
@@ -9,7 +15,7 @@ import { log } from "../utils/log.js";
 const HELP = {
   start: (name) =>
     `Привет! Я ${name} — мультиинструментальный ИИ-ассистент.\n\n` +
-    `Что я умею: искать и скачивать музыку, видео из YouTube, Instagram, Pinterest и TikTok, ` +
+    `Что я умею: искать и скачивать музыку и видео с YouTube (с выбором качества или только звук), ` +
     `проводить глубокое исследование (deep research), делать детальные PDF-отчёты, ` +
     `ставить напоминания, планировать задачи и запоминать важное о тебе.\n\n` +
     `Просто напиши, что нужно, или пришли ссылку. /help — список команд.\n\n` +
@@ -88,92 +94,129 @@ function renderProfile(profile) {
   return lines.join("\n");
 }
 
-export async function handleUpdate(update, base) {
+// Handle everything that is NOT a free-form agent turn: button callbacks, slash
+// commands, and the photo/empty-message notices. Returns:
+//   { handled: true }                              -> fully dealt with, stop
+//   { handled: false, chatId, text, originalText } -> hand off to the agent
+export async function handleControl(update, base) {
+  const tg = base.telegram;
+
   // Inline button presses on reminders (Stop / Snooze).
   if (update.callback_query) {
-    return void (await handleReminderCallback(update.callback_query, base));
+    await handleReminderCallback(update.callback_query, base);
+    return { handled: true };
   }
 
   const msg = update.message || update.edited_message;
-  if (!msg || !msg.chat) return;
+  if (!msg || !msg.chat) return { handled: true };
 
   const chatId = msg.chat.id;
-  let text = (msg.text || msg.caption || "").trim();
+  const text = (msg.text || msg.caption || "").trim();
   const originalText = text;
-  const ctx = { ...base, chatId, userId: msg.from && msg.from.id };
+
+  // Slash commands
+  if (text.startsWith("/")) {
+    const cmd = text.split(/\s+/)[0].replace(/@.*$/, "").toLowerCase();
+    if (cmd === "/start") {
+      await tg.sendMessage(chatId, HELP.start(base.config.bot.name));
+      return { handled: true };
+    }
+    if (cmd === "/help") {
+      await tg.sendMessage(chatId, HELP.help(base.config.bot.name));
+      return { handled: true };
+    }
+    if (cmd === "/reset") {
+      await base.store.resetHistory(chatId);
+      await base.store.clearRun(chatId).catch(() => {});
+      await tg.sendMessage(chatId, "История диалога очищена.");
+      return { handled: true };
+    }
+    if (cmd === "/forget") {
+      await base.store.clearMemory(chatId);
+      await tg.sendMessage(chatId, "Память обо мне очищена.");
+      return { handled: true };
+    }
+    if (cmd === "/memory") {
+      const mem = await base.store.getMemory(chatId);
+      const profile = renderProfile(mem.profile || {});
+      const facts = mem.facts.length ? mem.facts.map((f, i) => `${i + 1}. ${escapeHtml(f.text)}`).join("\n") : "";
+      const body = [profile, facts].filter(Boolean).join("\n\n") || "Пока ничего не запомнил.";
+      await tg.sendMessage(chatId, body);
+      return { handled: true };
+    }
+    if (cmd === "/reminders") {
+      if (!base.reminders) {
+        await tg.sendMessage(chatId, "Напоминания недоступны в этом режиме.");
+        return { handled: true };
+      }
+      const list = await base.reminders.list(chatId);
+      const body = list.length
+        ? list.map((r) => `• ${new Date(r.dueTs).toISOString()} — ${escapeHtml(r.text)} [${r.id}]`).join("\n")
+        : "Активных напоминаний нет.";
+      await tg.sendMessage(chatId, body);
+      return { handled: true };
+    }
+    if (cmd === "/diag") {
+      await tg.sendChatAction(chatId, "typing");
+      const out = [];
+      try {
+        await base.llm.minimax.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
+        out.push("OpenRouter (мозг): ок");
+      } catch (e) {
+        out.push("OpenRouter: ОШИБКА — " + shortReason(e));
+      }
+      await tg.sendMessage(chatId, out.join("\n"));
+      return { handled: true };
+    }
+    // Unknown command — fall through to the agent.
+  }
+
+  // Image recognition was removed (Gemini cut). A photo with no caption gets a
+  // clear note; a photo with a caption is handled as plain text below.
+  const photo = pickPhoto(msg);
+  if (photo && !originalText) {
+    await tg.sendMessage(chatId, "Сейчас я работаю только с текстом — изображения не распознаю.");
+    return { handled: true };
+  }
+
+  if (!text) {
+    await tg.sendMessage(chatId, "Пришли текст, ссылку или изображение.");
+    return { handled: true };
+  }
+
+  return { handled: false, chatId, text, originalText };
+}
+
+// Full in-process handler (Durable Object + Node polling): control first, then
+// run the agent loop, which streams every step's message through ctx.emit.
+export async function handleUpdate(update, base) {
   const tg = base.telegram;
-
+  let chatId;
   try {
-    // Slash commands
-    if (text.startsWith("/")) {
-      const cmd = text.split(/\s+/)[0].replace(/@.*$/, "").toLowerCase();
-      if (cmd === "/start") return void (await tg.sendMessage(chatId, HELP.start(base.config.bot.name)));
-      if (cmd === "/help") return void (await tg.sendMessage(chatId, HELP.help(base.config.bot.name)));
-      if (cmd === "/reset") {
-        await base.store.resetHistory(chatId);
-        return void (await tg.sendMessage(chatId, "История диалога очищена."));
-      }
-      if (cmd === "/forget") {
-        await base.store.clearMemory(chatId);
-        return void (await tg.sendMessage(chatId, "Память обо мне очищена."));
-      }
-      if (cmd === "/memory") {
-        const mem = await base.store.getMemory(chatId);
-        const profile = renderProfile(mem.profile || {});
-        const facts = mem.facts.length ? mem.facts.map((f, i) => `${i + 1}. ${escapeHtml(f.text)}`).join("\n") : "";
-        const body = [profile, facts].filter(Boolean).join("\n\n") || "Пока ничего не запомнил.";
-        return void (await tg.sendMessage(chatId, body));
-      }
-      if (cmd === "/reminders") {
-        if (!base.reminders) return void (await tg.sendMessage(chatId, "Напоминания недоступны в этом режиме."));
-        const list = await base.reminders.list(chatId);
-        const body = list.length
-          ? list.map((r) => `• ${new Date(r.dueTs).toISOString()} — ${escapeHtml(r.text)} [${r.id}]`).join("\n")
-          : "Активных напоминаний нет.";
-        return void (await tg.sendMessage(chatId, body));
-      }
-      if (cmd === "/diag") {
-        await tg.sendChatAction(chatId, "typing");
-        const out = [];
-        try {
-          await base.llm.minimax.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
-          out.push("OpenRouter (мозг): ок");
-        } catch (e) {
-          out.push("OpenRouter: ОШИБКА — " + shortReason(e));
-        }
-        return void (await tg.sendMessage(chatId, out.join("\n")));
-      }
-      // Unknown command — fall through to the agent.
-    }
+    const ctrl = await handleControl(update, base);
+    if (ctrl.handled) return;
+    chatId = ctrl.chatId;
 
-    // Image recognition was removed (Gemini cut). A photo with no caption gets
-    // a clear note; a photo with a caption is handled as plain text.
-    const photo = pickPhoto(msg);
-    if (photo && !originalText) {
-      return void (await tg.sendMessage(chatId, "Сейчас я работаю только с текстом — изображения не распознаю."));
-    }
-
-    if (!text) {
-      return void (await tg.sendMessage(chatId, "Пришли текст, ссылку или изображение."));
-    }
+    const emit = async (out) => {
+      const s = String(out || "").trim();
+      if (!s) return;
+      for (const part of chunk(s)) await tg.sendMessage(chatId, toTelegramHtml(part));
+    };
+    const ctx = { ...base, chatId, userId: update.message && update.message.from && update.message.from.id, emit };
 
     await tg.sendChatAction(chatId, "typing");
-    const reply = await runAgent(ctx, text);
-
-    for (const part of chunk(reply)) {
-      await tg.sendMessage(chatId, toTelegramHtml(part));
-    }
+    await runAgent(ctx, ctrl.text);
 
     // After replying, quietly update the user's memory file (fast model).
     try {
-      await extractMemory(ctx, originalText);
+      await extractMemory(ctx, ctrl.originalText);
     } catch (err) {
       log.warn("memory extraction failed", { error: err.message });
     }
   } catch (err) {
     log.error("handleUpdate failed", err);
     try {
-      await tg.sendMessage(chatId, "Что-то пошло не так: " + shortReason(err));
+      if (chatId != null) await tg.sendMessage(chatId, "Что-то пошло не так: " + shortReason(err));
     } catch {
       /* ignore */
     }
