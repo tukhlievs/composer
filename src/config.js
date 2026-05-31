@@ -5,10 +5,9 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-// Minimax is currently disabled (Gemini-only), so OpenRouter secrets are
-// optional. Re-add "OPENROUTER_API" and "OPENROUTER_MODEL" here if you flip
-// MINIMAX_ENABLED back on in src/llm/models.js.
-const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GEMINI_API"];
+// GROQ (qwen/qwen3-32b) is the text brain. GEMINI_API is optional and only
+// powers image recognition; OpenRouter/Minimax is off.
+const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API"];
 
 export function loadConfig(env) {
   const cfg = {
@@ -16,8 +15,12 @@ export function loadConfig(env) {
       token: env.TELEGRAM_BOT_TOKEN,
       webhookSecret: env.TELEGRAM_WEBHOOK_SECRET || "",
     },
-    // Gemini: planning + vision. Model is hardcoded in src/llm/models.js,
-    // so no GEMINI_MODEL env var is read.
+    // GROQ: the text brain (qwen/qwen3-32b, hardcoded in src/llm/groq.js).
+    // GROQ_MODEL env is intentionally ignored.
+    groq: {
+      apiKey: env.GROQ_API,
+    },
+    // Gemini: image recognition only (optional). Model hardcoded in models.js.
     gemini: {
       apiKey: env.GEMINI_API,
     },

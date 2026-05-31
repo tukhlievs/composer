@@ -13,17 +13,10 @@
 // break the bot.
 export const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
 
-// Minimax is temporarily disabled — everything runs on Gemini. Flip this back
-// to true to restore the split (Gemini = planning/vision/fast, Minimax = rest).
-const MINIMAX_ENABLED = false;
-
-const GEMINI_TASKS = new Set([
-  "plan", // decompose goals, research sub-queries
-  "vision", // image recognition
-  "fast", // lightweight structured extraction
-]);
-
-export function providerForTask(task) {
-  if (!MINIMAX_ENABLED) return "gemini";
-  return GEMINI_TASKS.has(task) ? "gemini" : "minimax";
+// Current setup: ALL text tasks run on GROQ (qwen/qwen3-32b, hardcoded in
+// groq.js). Gemini is used ONLY for image recognition (describeImage), since
+// GROQ has no vision. Minimax/OpenRouter is off. To change the text model,
+// edit GROQ_MODEL in src/llm/groq.js.
+export function providerForTask() {
+  return "groq";
 }

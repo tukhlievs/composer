@@ -30,7 +30,7 @@ loadDotenv();
 const missing = validateConfig(process.env);
 if (missing.length) {
   console.error("Missing required variables in .env: " + missing.join(", "));
-  console.error("Need TELEGRAM_BOT_TOKEN, GEMINI_API, OPENROUTER_API and OPENROUTER_MODEL.");
+  console.error("Need TELEGRAM_BOT_TOKEN and GROQ_API (GEMINI_API is optional, for image recognition).");
   process.exit(1);
 }
 

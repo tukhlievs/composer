@@ -136,29 +136,46 @@ export async function handleUpdate(update, base) {
         await tg.sendChatAction(chatId, "typing");
         const out = [];
         try {
-          await base.llm.gemini.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
-          out.push("Gemini: ок (используется для всего)");
+          await base.llm.groq.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
+          out.push("GROQ qwen3-32b (мозг): ок");
         } catch (e) {
-          out.push("Gemini: ОШИБКА — " + shortReason(e));
+          out.push("GROQ: ОШИБКА — " + shortReason(e));
         }
-        out.push("Minimax: отключён (работаем только через Gemini)");
+        if (base.config.gemini && base.config.gemini.apiKey) {
+          try {
+            await base.llm.gemini.chat([{ role: "user", content: "ок" }], { maxTokens: 8, temperature: 0 });
+            out.push("Gemini (зрение): ок");
+          } catch (e) {
+            out.push("Gemini (зрение): ОШИБКА — " + shortReason(e));
+          }
+        } else {
+          out.push("Gemini (зрение): не настроен — фото распознавать не смогу");
+        }
         return void (await tg.sendMessage(chatId, out.join("\n")));
       }
       // Unknown command — fall through to the agent.
     }
 
     // Image recognition: if the message carries a photo, let Gemini read it and
-    // fold the result into the text so the agent (Minimax) can act on it.
+    // fold the result into the text so the GROQ agent can act on it. GROQ has
+    // no vision, so this needs a Gemini key.
     const photo = pickPhoto(msg);
     if (photo) {
-      await tg.sendChatAction(chatId, "typing");
-      const f = await tg.getFile(photo.fileId);
-      const img = await tg.downloadFile(f.file_path);
-      const prompt = originalText || "Внимательно опиши это изображение, извлеки весь текст и важные детали. Отвечай на русском.";
-      const seen = await ctx.llm.describeImage(prompt, img);
-      text = originalText
-        ? `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nСообщение пользователя: ${originalText}`
-        : `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nКоротко отреагируй или помоги пользователю по этому изображению.`;
+      if (!(base.config.gemini && base.config.gemini.apiKey)) {
+        if (!originalText) {
+          return void (await tg.sendMessage(chatId, "Распознавание изображений сейчас отключено (не задан ключ Gemini)."));
+        }
+        // No vision available, but there is text — just handle the text.
+      } else {
+        await tg.sendChatAction(chatId, "typing");
+        const f = await tg.getFile(photo.fileId);
+        const img = await tg.downloadFile(f.file_path);
+        const prompt = originalText || "Внимательно опиши это изображение, извлеки весь текст и важные детали. Отвечай на русском.";
+        const seen = await ctx.llm.describeImage(prompt, img);
+        text = originalText
+          ? `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nСообщение пользователя: ${originalText}`
+          : `Пользователь прислал изображение. Распознанное содержание: ${seen}\n\nКоротко отреагируй или помоги пользователю по этому изображению.`;
+      }
     }
 
     if (!text) {

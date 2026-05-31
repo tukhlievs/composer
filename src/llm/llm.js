@@ -1,22 +1,22 @@
-// Unified LLM facade. Routes each call to the right provider by task:
-//   plan / vision / fast -> Gemini
-//   work / report / default -> Minimax (OpenRouter)
-// Vision (describeImage) always uses Gemini. Callers can force a provider with
-// opts.provider.
+// Unified LLM facade.
+//   chat()         -> GROQ (qwen/qwen3-32b) for all text work
+//   describeImage() -> Gemini (GROQ has no vision)
+// Routing is centralized in models.js (providerForTask). Callers may force a
+// provider with opts.provider.
 
+import { GroqClient } from "./groq.js";
 import { GeminiClient } from "./gemini.js";
-import { OpenRouterClient } from "./openrouter.js";
 import { providerForTask } from "./models.js";
 
 export class LLM {
   constructor(config) {
+    this.groq = new GroqClient(config);
     this.gemini = new GeminiClient(config);
-    this.minimax = new OpenRouterClient(config);
   }
 
   async chat(messages, opts = {}) {
     const provider = opts.provider || providerForTask(opts.task);
-    return provider === "gemini" ? this.gemini.chat(messages, opts) : this.minimax.chat(messages, opts);
+    return provider === "gemini" ? this.gemini.chat(messages, opts) : this.groq.chat(messages, opts);
   }
 
   // Image recognition — always Gemini.
