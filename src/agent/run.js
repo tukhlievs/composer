@@ -1,17 +1,14 @@
 // Orchestrates a single user turn: assembles context (system prompt + memory +
-// history), runs the ReAct loop (which streams each step's message to the user
-// via ctx.emit), persists the clean exchange, and returns the final reply text.
-//
-// prepareRun() is shared with the Queue runtime (runtime/queue.js), which drives
-// the same state one cycle per Worker request instead of looping in-process.
+// history), runs the agent graph, persists the exchange, and returns the final
+// reply text.
 
-import { runReact } from "./react.js";
+import { buildAgentGraph } from "./graph.js";
 import { buildSystemPrompt } from "./systemPrompt.js";
 import { toolSpecs } from "./tools.js";
 
-// Build the initial ReAct state for a turn: system prompt + recent history +
-// the new user message. Plain serialisable data so it can live in KV.
-export async function prepareRun(ctx, userText) {
+const graph = buildAgentGraph();
+
+export async function runAgent(ctx, userText) {
   const { config, store, chatId } = ctx;
 
   const [memory, plan, history] = await Promise.all([
@@ -20,7 +17,12 @@ export async function prepareRun(ctx, userText) {
     store.getHistory(chatId),
   ]);
 
-  const system = buildSystemPrompt({ config, toolSpecs: toolSpecs(), memory, plan });
+  const system = buildSystemPrompt({
+    config,
+    toolSpecs: toolSpecs(),
+    memory,
+    plan,
+  });
 
   const messages = [
     { role: "system", content: system },
@@ -28,34 +30,20 @@ export async function prepareRun(ctx, userText) {
     { role: "user", content: userText },
   ];
 
-  return { messages, steps: 0, maxSteps: config.bot.maxSteps, userText, done: false, final: "" };
-}
+  const state = await graph.invoke(
+    { messages, steps: 0, maxSteps: config.bot.maxSteps },
+    ctx,
+    { maxNodeVisits: config.bot.maxSteps * 2 + 4 }
+  );
 
-export async function runAgent(ctx, userText) {
-  const { store, chatId } = ctx;
-
-  const state = await prepareRun(ctx, userText);
-
-  // Checkpoint the live run so "history + current step" survives across cycles
-  // (KV on Workers, in-memory in polling). Best-effort; never breaks the turn.
-  ctx.checkpoint = async (s) => {
-    try {
-      if (store.saveRun) await store.saveRun(chatId, s);
-    } catch {
-      /* ignore checkpoint failures */
-    }
-  };
-
-  await runReact(state, ctx);
-
-  const final = (state.final && state.final.trim()) || "Готово.";
-  // Safety net: if the loop produced nothing to show, still send the fallback.
-  if (!(state.final && state.final.trim()) && ctx.emit) await ctx.emit(final);
+  const finalText = (state.final || "").toString().trim();
+  // If progress messages were already sent and there's no extra final text,
+  // stay silent instead of tacking on a filler "done".
+  const reply = finalText || (state.progressed ? "" : "Готово.");
 
   // Persist only the clean exchange, not the intermediate tool chatter.
   await store.appendHistory(chatId, "user", userText);
-  await store.appendHistory(chatId, "assistant", final);
-  if (store.clearRun) await store.clearRun(chatId).catch(() => {});
+  if (reply) await store.appendHistory(chatId, "assistant", reply);
 
-  return final;
+  return reply;
 }

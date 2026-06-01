@@ -4,7 +4,9 @@
 // qwen3 is a reasoning model that otherwise emits <think>...</think> traces,
 // which would break the JSON tool protocol. We disable reasoning via
 // reasoning_effort, ask for JSON best-effort, and strip any stray <think>
-// block from the output. If GROQ rejects an optional param (4xx) we retry bare.
+// block from the output. Empty content (a common failure with strict JSON mode
+// or reasoning truncation) triggers one retry without those constraints before
+// we give up.
 
 import { requestJson } from "../utils/http.js";
 
@@ -22,6 +24,18 @@ export class GroqClient {
   }
 
   async chat(messages, opts = {}) {
+    // First try with JSON mode (if requested). If the model returns empty
+    // content — which happens when a model can't honour response_format, or a
+    // reasoning model spends its whole budget thinking — retry once plainly.
+    let text = await this.#post(messages, opts, !!opts.json);
+    if (!text && opts.json) {
+      text = await this.#post(messages, opts, false);
+    }
+    if (!text) throw new Error("empty response");
+    return text;
+  }
+
+  async #post(messages, opts, useJson) {
     const headers = { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" };
     const core = {
       model: this.model,
@@ -29,9 +43,8 @@ export class GroqClient {
       temperature: opts.temperature ?? 0.4,
       max_tokens: opts.maxTokens ?? 1200,
     };
-    // No reasoning traces + JSON mode when asked.
     const primary = { ...core, reasoning_effort: "none" };
-    if (opts.json) primary.response_format = { type: "json_object" };
+    if (useJson) primary.response_format = { type: "json_object" };
 
     let data;
     try {
@@ -49,7 +62,9 @@ export class GroqClient {
 
     const choice = data && data.choices && data.choices[0];
     const content = choice && choice.message && choice.message.content;
-    if (!content) throw new Error((data && data.error && data.error.message) || "empty response");
-    return stripThink(typeof content === "string" ? content : JSON.stringify(content));
+    if (data && data.error && data.error.message && !content) {
+      throw new Error(data.error.message);
+    }
+    return stripThink(typeof content === "string" ? content : content ? JSON.stringify(content) : "");
   }
 }

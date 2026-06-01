@@ -10,6 +10,7 @@
 // it can be swapped later if you move to a function-calling model.
 
 import { runTool } from "./tools.js";
+import { toTelegramHtml } from "../telegram/format.js";
 
 export const END = "__end__";
 
@@ -68,13 +69,18 @@ class CompiledGraph {
 }
 
 // ---- JSON action parsing ----------------------------------------------------
+// Normalises the step protocol { thought, action, message, args } (and the
+// older { thought, tool, args, final } shape) into one of:
+//   { tool, args, message }   -> run a tool, after showing `message`
+//   { final, message }        -> final answer (text in `message`/`final`)
+const FINAL_ACTIONS = new Set(["respond", "finish", "answer", "reply", "none", ""]);
+
 export function extractAction(text) {
   if (!text) return { final: "" };
   let t = text.trim();
-  // Strip markdown fences if the model wrapped its JSON.
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) t = fence[1].trim();
-  // Find the first balanced {...} block.
+
   const start = t.indexOf("{");
   if (start !== -1) {
     let depth = 0;
@@ -83,10 +89,10 @@ export function extractAction(text) {
       else if (t[i] === "}") {
         depth--;
         if (depth === 0) {
-          const slice = t.slice(start, i + 1);
           try {
-            const obj = JSON.parse(slice);
-            if (obj && (obj.tool || obj.final !== undefined)) return obj;
+            const obj = JSON.parse(t.slice(start, i + 1));
+            const norm = normalizeAction(obj);
+            if (norm) return norm;
           } catch {
             /* fall through to prose fallback */
           }
@@ -99,17 +105,46 @@ export function extractAction(text) {
   return { final: text.trim() };
 }
 
+function normalizeAction(obj) {
+  if (!obj || typeof obj !== "object") return null;
+  const message = typeof obj.message === "string" ? obj.message : undefined;
+
+  // New protocol: { action, message, args }
+  if (typeof obj.action === "string") {
+    const action = obj.action.trim();
+    if (FINAL_ACTIONS.has(action.toLowerCase())) {
+      return { final: message != null ? message : "", message };
+    }
+    return { tool: action, args: obj.args || {}, message };
+  }
+  // Older protocol: { tool, args } / { final }
+  if (typeof obj.tool === "string") return { tool: obj.tool, args: obj.args || {}, message };
+  if (obj.final !== undefined) return { final: String(obj.final), message };
+  // A bare { message: "..." } with no action -> treat as final answer.
+  if (message !== undefined) return { final: message, message };
+  return null;
+}
+
 // ---- The agent graph --------------------------------------------------------
 export function buildAgentGraph() {
   const g = new StateGraph();
 
-  // "agent" node: ask the model for the next JSON action.
+  // "agent" node: ask the model for the next JSON step. For a tool step we show
+  // its human-readable `message` to the user immediately (Reason -> show -> Act).
   g.addNode("agent", async (state, ctx) => {
     const raw = await ctx.llm.chat(state.messages, { task: "work", temperature: 0.4, maxTokens: 3200, json: true });
     state.messages.push({ role: "assistant", content: raw });
-    const action = extractAction(raw);
-    state.action = action;
-    if (action.final !== undefined) state.final = String(action.final);
+    const a = extractAction(raw);
+    if (a.tool) {
+      if (a.message && a.message.trim()) {
+        await sendProgress(ctx, a.message);
+        state.progressed = true;
+      }
+      state.action = { tool: a.tool, args: a.args || {} };
+    } else {
+      state.final = String(a.final != null ? a.final : a.message != null ? a.message : "");
+      state.action = {};
+    }
     return state;
   });
 
@@ -143,19 +178,31 @@ export function buildAgentGraph() {
   });
   g.addEdge("tools", "agent");
 
-  // "force_finish": budget exhausted — get one plain answer, no more tools.
+  // "force_finish": budget exhausted or stuck — get one final answer, no tools.
   g.addNode("force_finish", async (state, ctx) => {
     state.messages.push({
       role: "user",
-      content: "You have reached the tool-step limit. Reply now with a final JSON object {\"final\": \"...\"} answering the user using what you have.",
+      content:
+        'Stop using tools and respond now. Output JSON {"action":"respond","message":"<the final answer to the user>"} using what you already have.',
     });
     const raw = await ctx.llm.chat(state.messages, { task: "work", temperature: 0.3, maxTokens: 2000, json: true });
-    state.final = extractAction(raw).final || raw.trim();
+    const a = extractAction(raw);
+    state.final = String(a.final != null ? a.final : a.message != null ? a.message : raw).trim();
     return state;
   });
   g.addEdge("force_finish", END);
 
   return g.compile();
+}
+
+// Send a short progress line to the user (best-effort, HTML-escaped).
+async function sendProgress(ctx, message) {
+  if (!ctx || !ctx.telegram || !ctx.chatId) return;
+  try {
+    await ctx.telegram.sendMessage(ctx.chatId, toTelegramHtml(message));
+  } catch {
+    /* progress is best-effort */
+  }
 }
 
 function truncate(s, n) {
