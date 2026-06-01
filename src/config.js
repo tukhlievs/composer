@@ -5,7 +5,7 @@
 // from the same .env by `npm run predev`. Either way .env is the only file a
 // human edits.
 
-// GROQ is the text brain (model hardcoded as groq/compound in src/llm/groq.js,
+// GROQ is the text brain (model hardcoded as qwen/qwen3-32b in src/llm/groq.js,
 // so GROQ_MODEL is not required). Gemini is removed; OpenRouter is unused.
 const REQUIRED_SECRETS = ["TELEGRAM_BOT_TOKEN", "GROQ_API"];
 

@@ -137,7 +137,7 @@ export async function handleUpdate(update, base) {
         const out = [];
         try {
           await base.llm.groq.chat([{ role: "user", content: "Ответь одним словом: ок" }], { maxTokens: 16, temperature: 0 });
-          out.push("GROQ groq/compound (мозг): ок");
+          out.push("GROQ qwen3-32b (мозг): ок");
         } catch (e) {
           out.push("GROQ: ОШИБКА — " + shortReason(e));
         }
